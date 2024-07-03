@@ -14,7 +14,7 @@ local function setup_keymaps(keymaps, mode, opts)
    for _, map in ipairs(keymaps) do
       local options =
          vim.tbl_extend("force", { noremap = true, silent = true }, opts or {})
-      vim.api.nvim_set_keymap(mode, map[1], map[2], options)
+      vim.api.nvim_set_keymap(mode, map[1], tostring(map[2]), options)
    end
 end
 
