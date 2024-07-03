@@ -14,7 +14,7 @@ local function setup_keymaps(keymaps, mode, opts)
    for _, map in ipairs(keymaps) do
       local options =
          vim.tbl_extend("force", { noremap = true, silent = true }, opts or {})
-      vkms(mode, map[1], map[2], options)
+      vim.api.nvim_set_keymap(mode, map[1], map[2], options)
    end
 end
 
@@ -32,6 +32,16 @@ M.setup = function(user_config)
    if not check_executable(config.bin) then
       return
    end
+
+   vim.api.nvim_create_user_command("DirenvAllow", function()
+      M.allow_direnv()
+   end, {})
+   vim.api.nvim_create_user_command("DirenvDeny", function()
+      M.deny_direnv()
+   end, {})
+   vim.api.nvim_create_user_command("DirenvCheck", function()
+      M.check_direnv()
+   end, {})
 
    setup_keymaps({
       {
