@@ -1,0 +1,62 @@
+name: "Style & Lint"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.lua_version }}-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
+
+    strategy:
+      matrix:
+        lua_version: [5.1]
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Lua setup"
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: ${{ matrix.lua_version }}
+
+      - name: "Install Luarocks"
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: "Install luacheck"
+        run: luarocks install luacheck 1.1.1
+
+      - name: "Lint"
+        run: luacheck lua/
+
+  style:
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.stylua_version }}-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: true
+
+    strategy:
+      matrix:
+        stylua_version: [0.19.1]
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Check style via Stylua"
+        uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ matrix.stylua_version }}
+          args: --check lua
