@@ -57,7 +57,10 @@ M.setup = function(user_config)
       },
    }, "n")
 
-   if config.autoload_direnv then
+   -- If user has enabled autoloading, and current directory has an .envrc
+   -- then load it. This has performance implications as it will check for
+   -- a filepath on each BufEnter event.
+   if config.autoload_direnv and vim.fn.glob("**/.envrc") ~= "" then
       local group_id = vim.api.nvim_create_augroup("DirenvNvim", {})
       vim.api.nvim_create_autocmd({ "BufEnter" }, {
          pattern = "*",
