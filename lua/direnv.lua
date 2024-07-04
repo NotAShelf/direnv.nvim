@@ -2,8 +2,9 @@ local M = {}
 
 local function check_executable(executable_name)
    if vim.fn.executable(executable_name) ~= 1 then
-      vim.api.nvim_err_writeln(
-         string.format("Executable '%s' not found", executable_name)
+      vim.notify(
+         "Executable '" .. executable_name .. "' not found",
+         vim.log.levels.ERROR
       )
       return false
    end
@@ -72,8 +73,9 @@ M.setup = function(user_config)
    -- a filepath on each BufEnter event.
    if config.autoload_direnv and vim.fn.glob("**/.envrc") ~= "" then
       local group_id = vim.api.nvim_create_augroup("DirenvNvim", {})
-      vim.api.nvim_create_autocmd({ "BufEnter" }, {
-         pattern = "*",
+
+      vim.api.nvim_create_autocmd({ "DirChanged" }, {
+         pattern = "global",
          group = group_id,
          callback = function()
             M.check_direnv()
@@ -92,9 +94,76 @@ M.deny_direnv = function()
    os.execute("direnv deny")
 end
 
+M._get_rc_status = function(_on_exit)
+   local on_exit = function(obj)
+      local status = vim.json.decode(obj.stdout)
+
+      if status.state.foundRC == nil then
+         return _on_exit(nil, nil)
+      end
+
+      _on_exit(status.state.foundRC.allowed, status.state.foundRC.path)
+   end
+
+   return vim.system(
+      { "direnv", "status", "--json" },
+      { text = true, cwd = vim.fn.getcwd(-1, -1) },
+      on_exit
+   )
+end
+
+M._init = function(path)
+   vim.schedule(function()
+      vim.notify("Reloading " .. path)
+   end)
+
+   local cwd = vim.fs.dirname(path)
+
+   local on_exit = function(obj)
+      vim.schedule(function()
+         vim.fn.execute(vim.fn.split(obj.stdout, "\n"))
+      end)
+   end
+
+   vim.system(
+      { "direnv", "export", "vim" },
+      { text = true, cwd = cwd },
+      on_exit
+   )
+end
+
 M.check_direnv = function()
-   print("Checking direnv status...")
-   os.execute("direnv reload")
+   local on_exit = function(status, path)
+      if status == nil or path == nil then
+         return
+      end
+
+      -- Allowed
+      if status == 0 then
+         return M._init(path)
+      end
+
+      -- Blocked
+      if status == 2 then
+         return
+      end
+
+      vim.schedule(function()
+         local choice =
+            vim.fn.confirm(path .. " is blocked.", "&Allow\n&Block\n&Ignore", 3)
+
+         if choice == 1 then
+            M.allow_direnv()
+            M._init(path)
+         end
+
+         if choice == 2 then
+            M._init(path)
+         end
+      end)
+   end
+
+   M._get_rc_status(on_exit)
 end
 
 return M
