@@ -34,15 +34,22 @@ M.setup = function(user_config)
       return
    end
 
-   vim.api.nvim_create_user_command("DirenvAllow", function()
-      M.allow_direnv()
-   end, {})
-   vim.api.nvim_create_user_command("DirenvDeny", function()
-      M.deny_direnv()
-   end, {})
-   vim.api.nvim_create_user_command("DirenvCheck", function()
-      M.check_direnv()
-   end, {})
+   vim.api.nvim_create_user_command("Direnv", function(opts)
+      local cmds = {
+         ["allow"] = M.allow_direnv,
+         ["deny"] = M.deny_direnv,
+         ["reload"] = M.check_direnv,
+      }
+      local cmd = cmds[string.lower(opts.fargs[1])]
+      if cmd then
+         cmd()
+      end
+   end, {
+      nargs = 1,
+      complete = function()
+         return { "allow", "deny", "reload" }
+      end,
+   })
 
    setup_keymaps({
       {
