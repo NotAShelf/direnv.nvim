@@ -11,11 +11,14 @@ local function check_executable(executable_name)
    return true
 end
 
-local function setup_keymaps(keymaps, mode, opts)
+local function setup_keymaps(keymaps, mode)
    for _, map in ipairs(keymaps) do
-      local options =
-         vim.tbl_extend("force", { noremap = true, silent = true }, opts or {})
-      vim.api.nvim_set_keymap(mode, map[1], map[2], options)
+      local options = vim.tbl_extend(
+         "force",
+         { noremap = true, silent = true },
+         map[3] or {}
+      )
+      vim.keymap.set(mode, map[1], map[2], options)
    end
 end
 
@@ -57,21 +60,21 @@ M.setup = function(user_config)
          function()
             M.allow_direnv()
          end,
-         desc = "Allow direnv",
+         { desc = "Allow direnv" },
       },
       {
          config.keybindings.deny,
          function()
             M.deny_direnv()
          end,
-         desc = "Deny direnv",
+         { desc = "Deny direnv" },
       },
       {
          config.keybindings.reload,
          function()
             M.check_direnv()
          end,
-         desc = "Reload direnv",
+         { desc = "Reload direnv" },
       },
    }, "n")
 
