@@ -26,6 +26,7 @@ M.setup = function(user_config)
    local config = vim.tbl_deep_extend("force", {
       bin = "direnv",
       autoload_direnv = false,
+      setFiletype = false,
       keybindings = {
          allow = "<Leader>da",
          deny = "<Leader>dd",
@@ -90,6 +91,12 @@ M.setup = function(user_config)
          callback = function()
             M.check_direnv()
          end,
+      })
+   end
+
+   if config.setFiletype then
+      vim.filetype.add({
+         filename = { [".envrc"] = "direnv" },
       })
    end
 end
