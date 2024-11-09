@@ -104,15 +104,15 @@ M.deny_direnv = function()
    os.execute("direnv deny")
 end
 
-M._get_rc_status = function(_on_exit)
+M._get_rc_status = function(callback)
    local on_exit = function(obj)
       local status = vim.json.decode(obj.stdout)
 
       if status.state.foundRC == nil then
-         return _on_exit(nil, nil)
+         return callback(nil, nil)
       end
 
-      _on_exit(status.state.foundRC.allowed, status.state.foundRC.path)
+      callback(status.state.foundRC.allowed, status.state.foundRC.path)
    end
 
    return vim.system(
@@ -128,16 +128,36 @@ M._init = function(path)
    end)
 
    local cwd = vim.fs.dirname(path)
+   local temppath = vim.fn.tempname()
+   local tempfile = io.open(temppath, "w")
+
+   if not tempfile then
+      vim.notify("Couldn't create temporary file", vim.log.levels.ERROR)
+      return
+   end
+
+   local write_output = function(_, data)
+      if data then
+         tempfile:write(data)
+      end
+   end
 
    local on_exit = function(obj)
       vim.schedule(function()
-         vim.fn.execute(vim.fn.split(obj.stdout, "\n"))
+         if obj.code ~= 0 then
+            vim.notify("Direnv exited with an error", vim.log.levels.ERROR)
+         else
+            vim.cmd.source(temppath)
+         end
+
+         tempfile:close()
+         os.remove(temppath)
       end)
    end
 
    vim.system(
       { "direnv", "export", "vim" },
-      { text = true, cwd = cwd },
+      { cwd = cwd, stdout = write_output },
       on_exit
    )
 end
@@ -148,17 +168,17 @@ M.check_direnv = function()
          return
       end
 
-      -- Allowed
-      if status == 0 then
-         return M._init(path)
-      end
-
-      -- Blocked
-      if status == 2 then
-         return
-      end
-
       vim.schedule(function()
+         -- Allowed
+         if status == 0 then
+            return M._init(path)
+         end
+
+         -- Blocked
+         if status == 2 then
+            return
+         end
+
          local choice =
             vim.fn.confirm(path .. " is blocked.", "&Allow\n&Block\n&Ignore", 3)
 
