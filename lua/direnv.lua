@@ -104,15 +104,15 @@ M.deny_direnv = function()
    os.execute("direnv deny")
 end
 
-M._get_rc_status = function(_on_exit)
+M._get_rc_status = function(callback)
    local on_exit = function(obj)
       local status = vim.json.decode(obj.stdout)
 
       if status.state.foundRC == nil then
-         return _on_exit(nil, nil)
+         return callback(nil, nil)
       end
 
-      _on_exit(status.state.foundRC.allowed, status.state.foundRC.path)
+      callback(status.state.foundRC.allowed, status.state.foundRC.path)
    end
 
    return vim.system(
@@ -136,7 +136,7 @@ M._init = function(path)
       return
    end
 
-   local write_output = function(err, data)
+   local write_output = function(_, data)
       if data then
          tempfile:write(data)
       end
