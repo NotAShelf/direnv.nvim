@@ -142,7 +142,7 @@ M._get_rc_status = function(callback)
          return callback(nil, nil)
       end
 
-      if status.state.foundRC == nil then
+      if status.state.foundRC == vim.NIL then
          cache.status = nil
          cache.path = nil
          cache.last_check = now
