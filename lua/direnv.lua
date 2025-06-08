@@ -20,9 +20,11 @@ local cache = {
    path = nil,
    last_check = 0,
    ttl = 5000, -- milliseconds before cache invalidation, then we can think about naming things
+   pending_request = false,
 }
 
 local notification_queue = {}
+local pending_callbacks = {}
 
 --- Check if an executable is available in PATH
 --- @param executable_name string Name of the executable
@@ -116,16 +118,32 @@ end
 M._get_rc_status = function(callback)
    local loop = vim.uv or vim.loop
    local now = math.floor(loop.hrtime() / 1000000) -- ns -> ms
+
    if cache.status ~= nil and (now - cache.last_check) < cache.ttl then
       return callback(cache.status, cache.path)
    end
 
+   table.insert(pending_callbacks, callback)
+
+   if cache.pending_request then
+      return
+   end
+
+   cache.pending_request = true
+
    local cwd = get_cwd()
    if not cwd then
-      return callback(nil, nil)
+      cache.pending_request = false
+      for _, cb in ipairs(pending_callbacks) do
+         cb(nil, nil)
+      end
+      pending_callbacks = {}
+      return
    end
 
    local on_exit = function(obj)
+      cache.pending_request = false
+
       if obj.code ~= 0 then
          vim.schedule(function()
             notify(
@@ -134,26 +152,41 @@ M._get_rc_status = function(callback)
                vim.log.levels.ERROR
             )
          end)
-         return callback(nil, nil)
+         for _, cb in ipairs(pending_callbacks) do
+            cb(nil, nil)
+         end
+         pending_callbacks = {}
+         return
       end
 
       local ok, status = pcall(vim.json.decode, obj.stdout)
       if not ok or not status or not status.state then
-         return callback(nil, nil)
+         for _, cb in ipairs(pending_callbacks) do
+            cb(nil, nil)
+         end
+         pending_callbacks = {}
+         return
       end
 
       if status.state.foundRC == vim.NIL then
          cache.status = nil
          cache.path = nil
          cache.last_check = now
-         return callback(nil, nil)
+         for _, cb in ipairs(pending_callbacks) do
+            cb(nil, nil)
+         end
+         pending_callbacks = {}
+         return
       end
 
       cache.status = status.state.foundRC.allowed
       cache.path = status.state.foundRC.path
       cache.last_check = now
 
-      callback(status.state.foundRC.allowed, status.state.foundRC.path)
+      for _, cb in ipairs(pending_callbacks) do
+         cb(status.state.foundRC.allowed, status.state.foundRC.path)
+      end
+      pending_callbacks = {}
    end
 
    vim.system(
