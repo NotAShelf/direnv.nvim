@@ -3,6 +3,7 @@ local M = {}
 --- @class DirenvConfig
 --- @field bin string Path to direnv executable
 --- @field autoload_direnv boolean Automatically load direnv when opening files
+--- @field cache_ttl integer Cache TTL in milliseconds for direnv status checks
 --- @field statusline table Configuration for statusline integration
 --- @field statusline.enabled boolean Enable statusline integration
 --- @field statusline.icon string Icon to show in statusline
@@ -19,7 +20,6 @@ local cache = {
    status = nil,
    path = nil,
    last_check = 0,
-   ttl = 5000, -- milliseconds before cache invalidation, then we can think about naming things
    pending_request = false,
 }
 
@@ -118,8 +118,9 @@ end
 M._get_rc_status = function(callback)
    local loop = vim.uv or vim.loop
    local now = math.floor(loop.hrtime() / 1000000) -- ns -> ms
+   local ttl = (M.config and M.config.cache_ttl) or 5000
 
-   if cache.status ~= nil and (now - cache.last_check) < cache.ttl then
+   if cache.status ~= nil and (now - cache.last_check) < ttl then
       return callback(cache.status, cache.path)
    end
 
@@ -447,6 +448,7 @@ M.setup = function(user_config)
    M.config = vim.tbl_deep_extend("force", {
       bin = "direnv",
       autoload_direnv = false,
+      cache_ttl = 5000,
       statusline = {
          enabled = false,
          icon = "󱚟",
