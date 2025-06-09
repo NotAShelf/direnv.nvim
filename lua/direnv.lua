@@ -13,7 +13,7 @@ local M = {}
 --- @field keybindings.edit string Keybinding to edit .envrc
 --- @field notifications table Notification settings
 --- @field notifications.level integer Log level for notifications
---- @field notifications.silent_autoload boolean Don't show notifications during autoload
+--- @field notifications.silent_autoload boolean Don't show notifications during autoload and initialization
 
 local cache = {
    status = nil,
@@ -603,7 +603,9 @@ M.setup = function(user_config)
 
    process_notification_queue()
 
-   notify("direnv.nvim initialized", vim.log.levels.DEBUG)
+   if not M.config.notifications.silent_autoload then
+      notify("direnv.nvim initialized", vim.log.levels.DEBUG)
+   end
 end
 
 return M
