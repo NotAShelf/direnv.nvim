@@ -1,20 +1,20 @@
 local M = {}
 
---- @class DirenvConfig
---- @field bin string Path to direnv executable
---- @field autoload_direnv boolean Automatically load direnv when opening files
---- @field cache_ttl integer Cache TTL in milliseconds for direnv status checks
---- @field statusline table Configuration for statusline integration
---- @field statusline.enabled boolean Enable statusline integration
---- @field statusline.icon string Icon to show in statusline
---- @field keybindings table Keybindings configuration
---- @field keybindings.allow string Keybinding to allow direnv
---- @field keybindings.deny string Keybinding to deny direnv
---- @field keybindings.reload string Keybinding to reload direnv
---- @field keybindings.edit string Keybinding to edit .envrc
---- @field notifications table Notification settings
---- @field notifications.level integer Log level for notifications
---- @field notifications.silent_autoload boolean Don't show notifications during autoload and initialization
+---@class DirenvConfig
+---@field bin string Path to direnv executable
+---@field autoload_direnv boolean|string Automatically load direnv when opening files. true/false or "confirm" to show file first
+---@field cache_ttl integer Cache TTL in milliseconds for direnv status checks
+---@field statusline table Configuration for statusline integration
+---@field statusline.enabled boolean Enable statusline integration
+---@field statusline.icon string Icon to show in statusline
+---@field keybindings table Keybindings configuration
+---@field keybindings.allow string Keybinding to allow direnv
+---@field keybindings.deny string Keybinding to deny direnv
+---@field keybindings.reload string Keybinding to reload direnv
+---@field keybindings.edit string Keybinding to edit .envrc
+---@field notifications table Notification settings
+---@field notifications.level integer Log level for notifications
+---@field notifications.silent_autoload boolean Don't show notifications during autoload and initialization
 
 local cache = {
    status = nil,
@@ -26,9 +26,9 @@ local cache = {
 local notification_queue = {}
 local pending_callbacks = {}
 
---- Check if an executable is available in PATH
---- @param executable_name string Name of the executable
---- @return boolean is_available
+---Check if an executable is available in PATH
+---@param executable_name string Name of the executable
+---@return boolean is_available
 local function check_executable(executable_name)
    if vim.fn.executable(executable_name) ~= 1 then
       vim.notify(
@@ -44,8 +44,8 @@ local function check_executable(executable_name)
    return true
 end
 
---- Get current working directory safely
---- @return string|nil cwd Current working directory or nil on error
+---Get current working directory safely
+---@return string|nil cwd Current working directory or nil on error
 local function get_cwd()
    local cwd_result, err = vim.uv.cwd()
    if err then
@@ -60,9 +60,9 @@ local function get_cwd()
    return cwd_result
 end
 
---- Setup keymaps for the plugin
---- @param keymaps table List of keymap definitions
---- @param mode string|table Vim mode for the keymap
+---Setup keymaps for the plugin
+---@param keymaps table List of keymap definitions
+---@param mode string|table Vim mode for the keymap
 local function setup_keymaps(keymaps, mode)
    for _, map in ipairs(keymaps) do
       local options = vim.tbl_extend(
@@ -74,10 +74,10 @@ local function setup_keymaps(keymaps, mode)
    end
 end
 
---- Safe notify function that works in both sync and async contexts
---- @param msg string Message to display
---- @param level? integer Log level
---- @param opts? table Additional notification options
+---Safe notify function that works in both sync and async contexts
+---@param msg string Message to display
+---@param level? integer Log level
+---@param opts? table Additional notification options
 local function notify(msg, level, opts)
    -- Ensure level is an integer
    level = level
@@ -103,7 +103,7 @@ local function notify(msg, level, opts)
    end
 end
 
---- Process any pending notifications
+---Process any pending notifications
 local function process_notification_queue()
    vim.schedule(function()
       while #notification_queue > 0 do
@@ -113,8 +113,8 @@ local function process_notification_queue()
    end)
 end
 
---- Get current direnv status via JSON API
---- @param callback function Callback function to handle result
+---Get current direnv status via JSON API
+---@param callback function Callback function to handle result
 M._get_rc_status = function(callback)
    local loop = vim.uv or vim.loop
    local now = math.floor(loop.hrtime() / 1000000) -- ns -> ms
@@ -197,8 +197,8 @@ M._get_rc_status = function(callback)
    )
 end
 
---- Initialize direnv for current directory
---- @param path string Path to .envrc file
+---Initialize direnv for current directory
+---@param path string Path to .envrc file
 M._init = function(path)
    local cwd = vim.fs.dirname(path)
    local silent = M.config.notifications.silent_autoload
@@ -303,7 +303,7 @@ M.allow_direnv = function()
    end)
 end
 
---- Deny direnv for current directory
+---Deny direnv for current directory
 M.deny_direnv = function()
    M._get_rc_status(function(_, path)
       if not path then
@@ -349,7 +349,7 @@ M.deny_direnv = function()
    end)
 end
 
---- Edit the .envrc file
+---Edit the .envrc file
 M.edit_envrc = function()
    M._get_rc_status(function(_, path)
       if not path then
@@ -381,7 +381,7 @@ M.edit_envrc = function()
    end)
 end
 
---- Check and load direnv if applicable
+---Check and load direnv if applicable
 M.check_direnv = function()
    local on_exit = function(status, path)
       if status == nil or path == nil then
@@ -405,27 +405,43 @@ M.check_direnv = function()
       end
 
       -- Status 1 means the .envrc file needs approval
-      vim.schedule(function()
-         local choice = vim.fn.confirm(
-            path .. " is not allowed by direnv. What would you like to do?",
-            "&Allow\n&Block\n&Ignore",
-            1
-         )
+      if M.config.autoload_direnv == "confirm" then
+         vim.schedule(function()
+            vim.cmd("edit " .. path)
+            vim.defer_fn(function()
+               local choice = vim.fn.confirm(
+                  "Load environment from " .. path .. "?",
+                  "&Yes\n&No",
+                  1
+               )
+               if choice == 1 then
+                  M.allow_direnv()
+               end
+            end, 100)
+         end)
+      else
+         vim.schedule(function()
+            local choice = vim.fn.confirm(
+               path .. " is not allowed by direnv. What would you like to do?",
+               "&Allow\n&Block\n&Ignore",
+               1
+            )
 
-         if choice == 1 then
-            M.allow_direnv()
-         elseif choice == 2 then
-            M.deny_direnv()
-         end
-         -- Ignore means do nothing
-      end)
+            if choice == 1 then
+               M.allow_direnv()
+            elseif choice == 2 then
+               M.deny_direnv()
+            end
+            -- Ignore means do nothing
+         end)
+      end
    end
 
    M._get_rc_status(on_exit)
 end
 
---- Get direnv status for statusline integration
---- @return string status_string
+---Get direnv status for statusline integration
+---@return string status_string
 M.statusline = function()
    if not M.config.statusline.enabled then
       return ""
@@ -442,8 +458,8 @@ M.statusline = function()
    end
 end
 
---- Setup the plugin with user configuration
---- @param user_config? table User configuration table
+---Setup the plugin with user configuration
+---@param user_config? table User configuration table
 M.setup = function(user_config)
    M.config = vim.tbl_deep_extend("force", {
       bin = "direnv",
