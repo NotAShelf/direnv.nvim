@@ -447,6 +447,24 @@ end
 --- Setup the plugin with user configuration
 --- @param user_config? table User configuration table
 M.setup = function(user_config)
+   if user_config and user_config.keybindings == true then
+      user_config.keybindings = nil
+   end
+
+   local function check_bind(command)
+      ---@diagnostic disable-next-line: need-check-nil
+      if user_config.keybindings[command] == true then
+         ---@diagnostic disable-next-line: need-check-nil
+         user_config.keybindings[command] = nil
+      end
+   end
+
+   if user_config and user_config.keybindings then
+      for k, _ in pairs(user_config.keybindings) do
+         check_bind(k)
+      end
+   end
+
    M.config = vim.tbl_deep_extend("force", {
       bin = "direnv",
       autoload_direnv = false,
