@@ -4,9 +4,6 @@ local M = {}
 --- @field bin string Path to direnv executable
 --- @field autoload_direnv boolean Automatically load direnv when opening files
 --- @field cache_ttl integer Cache TTL in milliseconds for direnv status checks
---- @field statusline table Configuration for statusline integration
---- @field statusline.enabled boolean Enable statusline integration
---- @field statusline.icon string Icon to show in statusline
 --- @field keybindings table Keybindings configuration
 --- @field keybindings.allow string Keybinding to allow direnv
 --- @field keybindings.deny string Keybinding to deny direnv
@@ -15,6 +12,16 @@ local M = {}
 --- @field notifications table Notification settings
 --- @field notifications.level integer Log level for notifications
 --- @field notifications.silent_autoload boolean Don't show notifications during autoload and initialization
+--- @field integrations table Integration configurations
+--- @field integrations.statusline table Statusline configuration
+--- @field integrations.statusline.enabled boolean Enable statusline integration
+--- @field integrations.statusline.icon string Icon to show in statusline
+--- @field integrations.treesitter table Treesitter configuration
+--- @field integrations.treesitter.enabled boolean Enable Treesitter syntax highlighting for .envrc files
+---
+--- The direnv.nvim plugin provides integrations with other Neovim plugins:
+--- - direnv.integrations.treesitter: Syntax highlighting for .envrc files
+--- - direnv.integrations.statusline: Statusline component for direnv status
 
 local cache = {
    status = nil,
@@ -25,6 +32,28 @@ local cache = {
 
 local notification_queue = {}
 local pending_callbacks = {}
+
+-- Lazy load integration modules
+local treesitter = nil
+local statusline = nil
+
+local function get_treesitter()
+   if treesitter == nil then
+      treesitter = pcall(require, "direnv.integrations.treesitter")
+            and require("direnv.integrations.treesitter")
+         or nil
+   end
+   return treesitter
+end
+
+local function get_statusline()
+   if statusline == nil then
+      statusline = pcall(require, "direnv.integrations.statusline")
+            and require("direnv.integrations.statusline")
+         or nil
+   end
+   return statusline
+end
 
 --- Check if an executable is available in PATH
 --- @param executable_name string Name of the executable
@@ -173,6 +202,12 @@ M._get_rc_status = function(callback)
          cache.status = nil
          cache.path = nil
          cache.last_check = now
+
+         -- Update statusline integration
+         local sl = get_statusline()
+         if sl then
+            sl.update_status(cache.status)
+         end
          for _, cb in ipairs(pending_callbacks) do
             cb(nil, nil)
          end
@@ -183,6 +218,12 @@ M._get_rc_status = function(callback)
       cache.status = status.state.foundRC.allowed
       cache.path = status.state.foundRC.path
       cache.last_check = now
+
+      -- Update statusline integration
+      local sl = get_statusline()
+      if sl then
+         sl.update_status(cache.status)
+      end
 
       for _, cb in ipairs(pending_callbacks) do
          cb(status.state.foundRC.allowed, status.state.foundRC.path)
@@ -293,6 +334,13 @@ M.allow_direnv = function()
             -- Clear cache to ensure we get fresh data
             -- and then load the environment
             cache.status = nil
+
+            -- Update statusline integration
+            local sl = get_statusline()
+            if sl then
+               sl.update_status(cache.status)
+            end
+
             M.check_direnv()
 
             vim.schedule(function()
@@ -341,6 +389,12 @@ M.deny_direnv = function()
 
             cache.status = nil
 
+            -- Update statusline integration
+            local sl = get_statusline()
+            if sl then
+               sl.update_status(cache.status)
+            end
+
             vim.schedule(function()
                notify("direnv denied for " .. path, vim.log.levels.INFO)
             end)
@@ -370,6 +424,15 @@ M.edit_envrc = function()
 
             if create_new == 1 then
                vim.cmd("edit " .. envrc_path)
+               -- Setup Treesitter for newly created .envrc file
+               if M.config.integrations.treesitter.enabled then
+                  local ts = get_treesitter()
+                  if ts then
+                     vim.defer_fn(function()
+                        ts.setup_buffer()
+                     end, 100)
+                  end
+               end
             end
          end)
          return
@@ -377,6 +440,15 @@ M.edit_envrc = function()
 
       vim.schedule(function()
          vim.cmd("edit " .. path)
+         -- Setup Treesitter for existing .envrc file
+         if M.config.integrations.treesitter.enabled then
+            local ts = get_treesitter()
+            if ts then
+               vim.defer_fn(function()
+                  ts.setup_buffer()
+               end, 100)
+            end
+         end
       end)
    end)
 end
@@ -427,19 +499,11 @@ end
 --- Get direnv status for statusline integration
 --- @return string status_string
 M.statusline = function()
-   if not M.config.statusline.enabled then
+   local sl = get_statusline()
+   if not sl then
       return ""
    end
-
-   if cache.status == 0 then
-      return M.config.statusline.icon .. " active"
-   elseif cache.status == 1 then
-      return M.config.statusline.icon .. " pending"
-   elseif cache.status == 2 then
-      return M.config.statusline.icon .. " blocked"
-   else
-      return ""
-   end
+   return sl.statusline(M.config.integrations.statusline)
 end
 
 --- Setup the plugin with user configuration
@@ -449,10 +513,6 @@ M.setup = function(user_config)
       bin = "direnv",
       autoload_direnv = false,
       cache_ttl = 5000,
-      statusline = {
-         enabled = false,
-         icon = "󱚟",
-      },
       keybindings = {
          allow = "<Leader>da",
          deny = "<Leader>dd",
@@ -462,6 +522,15 @@ M.setup = function(user_config)
       notifications = {
          level = vim.log.levels.INFO,
          silent_autoload = true,
+      },
+      integrations = {
+         statusline = {
+            enabled = false,
+            icon = "",
+         },
+         treesitter = {
+            enabled = true,
+         },
       },
    }, user_config or {})
 
@@ -588,6 +657,13 @@ M.setup = function(user_config)
       group = group_id,
       callback = function()
          cache.status = nil
+
+         -- Update statusline integration
+         local sl = get_statusline()
+         if sl then
+            sl.update_status(cache.status)
+         end
+
          notify(
             ".envrc file changed. Run :Direnv allow to activate changes.",
             vim.log.levels.INFO
@@ -598,12 +674,27 @@ M.setup = function(user_config)
    -- Expose a command to refresh the statusline value without triggering reload
    vim.api.nvim_create_user_command("DirenvStatuslineRefresh", function()
       cache.last_check = 0
+
+      -- Refresh statusline integration
+      local sl = get_statusline()
+      if sl then
+         sl.refresh()
+      end
+
       M._get_rc_status(function() end)
    end, {})
 
    M._get_rc_status(function() end)
 
    process_notification_queue()
+
+   -- Setup Treesitter support if enabled
+   if M.config.integrations.treesitter.enabled then
+      local ts = get_treesitter()
+      if ts then
+         ts.setup(M.config)
+      end
+   end
 
    if not M.config.notifications.silent_autoload then
       notify("direnv.nvim initialized", vim.log.levels.DEBUG)
