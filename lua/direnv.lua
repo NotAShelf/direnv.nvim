@@ -7,11 +7,11 @@ local M = {}
 --- @field statusline table Configuration for statusline integration
 --- @field statusline.enabled boolean Enable statusline integration
 --- @field statusline.icon string Icon to show in statusline
---- @field keybindings table Keybindings configuration
---- @field keybindings.allow string Keybinding to allow direnv
---- @field keybindings.deny string Keybinding to deny direnv
---- @field keybindings.reload string Keybinding to reload direnv
---- @field keybindings.edit string Keybinding to edit .envrc
+--- @field keybindings table | boolean Keybindings configuration
+--- @field keybindings.allow string | boolean Keybinding to allow direnv
+--- @field keybindings.deny string | boolean Keybinding to deny direnv
+--- @field keybindings.reload string | boolean Keybinding to reload direnv
+--- @field keybindings.edit string | boolean Keybinding to edit .envrc
 --- @field notifications table Notification settings
 --- @field notifications.level integer Log level for notifications
 --- @field notifications.silent_autoload boolean Don't show notifications during autoload and initialization
@@ -70,7 +70,9 @@ local function setup_keymaps(keymaps, mode)
          { noremap = true, silent = true },
          map[3] or {}
       )
-      vim.keymap.set(mode, map[1], map[2], options)
+      if map[1] then
+         vim.keymap.set(mode, map[1], map[2], options)
+      end
    end
 end
 
@@ -520,36 +522,38 @@ M.setup = function(user_config)
    })
 
    -- Setup keybindings
-   setup_keymaps({
-      {
-         M.config.keybindings.allow,
-         function()
-            M.allow_direnv()
-         end,
-         { desc = "Allow direnv" },
-      },
-      {
-         M.config.keybindings.deny,
-         function()
-            M.deny_direnv()
-         end,
-         { desc = "Deny direnv" },
-      },
-      {
-         M.config.keybindings.reload,
-         function()
-            M.check_direnv()
-         end,
-         { desc = "Reload direnv" },
-      },
-      {
-         M.config.keybindings.edit,
-         function()
-            M.edit_envrc()
-         end,
-         { desc = "Edit .envrc file" },
-      },
-   }, "n")
+   if M.config.keybindings then
+      setup_keymaps({
+         {
+            M.config.keybindings.allow,
+            function()
+               M.allow_direnv()
+            end,
+            { desc = "Allow direnv" },
+         },
+         {
+            M.config.keybindings.deny,
+            function()
+               M.deny_direnv()
+            end,
+            { desc = "Deny direnv" },
+         },
+         {
+            M.config.keybindings.reload,
+            function()
+               M.check_direnv()
+            end,
+            { desc = "Reload direnv" },
+         },
+         {
+            M.config.keybindings.edit,
+            function()
+               M.edit_envrc()
+            end,
+            { desc = "Edit .envrc file" },
+         },
+      }, "n")
+   end
 
    -- Check for .envrc files and set up autoload
    local group_id = vim.api.nvim_create_augroup("DirenvNvim", { clear = true })
