@@ -1,5 +1,7 @@
 # direnv.nvim
 
+[direnv]: https://direnv.net/
+
 Dead simple Neovim plugin to add automatic Direnv loading, inspired by
 `direnv.vim` and written in Lua for better performance and maintainability.
 
@@ -15,13 +17,14 @@ Dead simple Neovim plugin to add automatic Direnv loading, inspired by
 
 ### 📓 TODO
 
-There are things direnv.nvim can _not_ yet do. Mainly, we would like to
-integrate Treesitter for **syntax highlighting** similar to direnv.vim.
-Unfortunately there isn't a TS grammar for Direnv, but we can port syntax.vim
-from direnv.vim.
+`direnv.nvim` is generally feature complete. There are no major planned
+features, and it should be considered stable for the most part. What
+`direnv.nvim` _cannot_ do yet is **syntax highlighting** similar to `direnv.vim`
+but this is planned to be remedied through either using Treesitter, or by
+porting `direnv.vim`'s syntax.vim.'
 
-Additionally, it might be worth adding an option to allow direnv on, e.g.,
-VimEnter if the user has configured to do so.
+Feature requests are welcome. Please create an issue to describe the feature
+that you would like to see.
 
 ## 📦 Installation
 
@@ -31,7 +34,7 @@ You will need to call the setup function to load the plugin.
 ### Prerequisites
 
 - Neovim 0.8.0 or higher
-- [direnv](https://direnv.net/) installed and available in your PATH
+- [direnv] v2.33.0 or later installed and available in your PATH
 
 ### Using lazy.nvim
 

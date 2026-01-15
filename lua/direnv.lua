@@ -164,6 +164,14 @@ M._get_rc_status = function(callback)
 
       local ok, status = pcall(vim.json.decode, obj.stdout)
       if not ok or not status or not status.state then
+         vim.schedule(function()
+            notify(
+               "Failed to parse direnv status. Your version of direnv may not support JSON output. "
+                  .. "Please ensure you have direnv v2.33.0 or later installed. "
+                  .. "You can verify by running: direnv status --json",
+               vim.log.levels.ERROR
+            )
+         end)
          for _, cb in ipairs(pending_callbacks) do
             cb(nil, nil)
          end
