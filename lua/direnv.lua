@@ -235,10 +235,7 @@ M._init = function(path)
          local ok, env = pcall(vim.json.decode, obj.stdout)
 
          if not ok or type(env) ~= "table" then
-            notify(
-               "Failed to parse direnv JSON output",
-               vim.log.levels.ERROR
-            )
+            notify("Failed to parse direnv JSON output", vim.log.levels.ERROR)
             return
          end
 
