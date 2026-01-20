@@ -224,32 +224,42 @@ M._init = function(path)
       end
 
       vim.schedule(function()
-         local env_commands = vim.split(obj.stdout, "\n")
-         if #env_commands > 0 then
-            for _, cmd in ipairs(env_commands) do
-               if cmd ~= "" then
-                  pcall(function()
-                     vim.cmd(cmd)
-                  end)
-               end
-            end
+         local ok, env = pcall(vim.json.decode, obj.stdout)
 
-            if not silent then
-               notify(
-                  "direnv environment loaded successfully",
-                  vim.log.levels.INFO
-               )
+         if not ok or type(env) ~= "table" then
+            notify(
+               "Failed to parse direnv JSON output",
+               vim.log.levels.ERROR
+            )
+            return
+         end
+
+         for key, value in pairs(env) do
+            if value == vim.NIL or value == nil then
+               vim.env[key] = nil
+            else
+               if type(value) ~= "string" then
+                  value = tostring(value)
+               end
+               vim.env[key] = value
             end
-            vim.api.nvim_exec_autocmds(
-               "User",
-               { pattern = "DirenvLoaded", modeline = false }
+         end
+
+         if not silent then
+            notify(
+               "direnv environment loaded successfully",
+               vim.log.levels.INFO
             )
          end
+         vim.api.nvim_exec_autocmds(
+            "User",
+            { pattern = "DirenvLoaded", modeline = false }
+         )
       end)
    end
 
    vim.system(
-      { M.config.bin, "export", "vim" },
+      { M.config.bin, "export", "json" },
       { text = true, cwd = cwd },
       on_exit
    )
