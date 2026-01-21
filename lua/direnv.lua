@@ -207,6 +207,11 @@ M._get_rc_status = function(callback)
    )
 end
 
+M.refresh_status = function()
+   cache.status = nil
+   M._get_rc_status(function() end)
+end
+
 --- Initialize direnv for current directory
 --- @param path string Path to .envrc file
 M._init = function(path)
@@ -624,7 +629,7 @@ M.setup = function(user_config)
       pattern = ".envrc",
       group = group_id,
       callback = function()
-         cache.status = nil
+         M.refresh_status()
          notify(
             ".envrc file changed. Run :Direnv allow to activate changes.",
             vim.log.levels.INFO
@@ -634,8 +639,7 @@ M.setup = function(user_config)
 
    -- Expose a command to refresh the statusline value without triggering reload
    vim.api.nvim_create_user_command("DirenvStatuslineRefresh", function()
-      cache.last_check = 0
-      M._get_rc_status(function() end)
+      M.refresh_status()
    end, {})
 
    M._get_rc_status(function() end)
