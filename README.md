@@ -181,14 +181,24 @@ vim.api.nvim_create_autocmd("User", {
 })
 ```
 
-## 🫂 Special Thanks
+## 🫂 Attributions / Special Thanks
 
-I extend my thanks to the awesome [Lychee](https://github.com/itslychee),
-[mrshmllow](https://github.com/mrshmllow) and
-[diniamo](https://github.com/diniamo) for their invaluable assistance in the
-creation of this plugin. I would also like to thank
-[direnv.vim](https://github.com/direnv/direnv.vim) maintainers for their initial
-work.
+[direnv.vim]: https://github.com/direnv/direnv.vim
+
+My first thanks go first to the awesome [direnv.vim] (available under the MIT
+license) that this plugin draws a lot of inspiration from. It is a small,
+practical solution that has served me well.
+
+[diniamo]: https://github.com/diniamo
+[lychee]: https://github.com/itslychee
+[mrshmllow]: https://github.com/mrshmllow
+
+I would also like to extend my thanks to
+
+I extend my thanks to the awesome [diniamo], [Lychee], [mrshmllow] for their
+invaluable assistance in the creation of this plugin. The earlier prototypes of
+this plugin were nowhere near what it is today, and thanks to them many
+improvements were made possible.
 
 ## 📜 License
 
