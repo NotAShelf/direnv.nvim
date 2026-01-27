@@ -1,15 +1,17 @@
 # direnv.nvim
 
-[direnv]: https://direnv.net/
+[Direnv]: https://direnv.net/
 
-Dead simple Neovim plugin to add automatic Direnv loading, inspired by
-`direnv.vim` and written in Lua for better performance and maintainability.
+Dead simple Neovim plugin to add automatic [Direnv] environment loading,
+inspired by `direnv.vim` and written in Lua for better performance and
+maintainability.
 
 ## ✨ Features
 
-- Seamless integration with direnv for managing project environment variables
+- Seamless integration with Direnv for managing project environment variables
   - Automatic detection of `.envrc` files in your workspace
   - Proper handling of allowed, pending, and denied states
+  - Keybinds for various Direnv commands
 - Built-in `.envrc` editor with file creation wizard
 - Statusline component showing real-time direnv status
 - Event hooks for integration with other plugins
@@ -34,7 +36,7 @@ You will need to call the setup function to load the plugin.
 ### Prerequisites
 
 - Neovim 0.8.0 or higher
-- [direnv] v2.33.0 or later installed and available in your PATH
+- [Direnv] v2.33.0 or later installed and available in your `PATH`
 
 ### Using lazy.nvim
 
@@ -49,7 +51,7 @@ You will need to call the setup function to load the plugin.
 
 ## 🚀 Usage
 
-direnv.nvim will manage your .envrc files in Neovim by providing commands to
+direnv.nvim will manage your `.envrc` files in Neovim by providing commands to
 allow, deny, reload and edit them. When auto-loading is enabled, the plugin will
 automatically detect and prompt for allowing `.envrc` files in your current
 directory.
@@ -135,7 +137,7 @@ The statusline function will show:
 
 ## 🔍 API Reference
 
-**Public Functions**
+### Public Functions
 
 - `direnv.setup(config)` - Initialize the plugin with optional configuration
 - `direnv.allow_direnv()` - Allow the current directory's `.envrc` file
@@ -144,7 +146,7 @@ The statusline function will show:
 - `direnv.edit_envrc()` - Edit the `.envrc` file
 - `direnv.statusline()` - Get a string for statusline integration
 
-### Example
+#### Example
 
 ```lua
 local direnv = require("direnv")
@@ -165,7 +167,7 @@ vim.keymap.set('n', '<Leader>er', function()
 end, { desc = "Reload direnv" })
 ```
 
-### Events
+#### Events
 
 The plugin triggers a User autocmd event that you can hook into:
 
@@ -190,5 +192,10 @@ work.
 
 ## 📜 License
 
-direnv.nvim is licensed under the [MPL v2.0](./LICENSE). Please see the license
-file for more details.
+<!-- markdownlint-disable MD059 -->
+
+direnv.nvim is made available under Mozilla Public License (MPL) version 2.0.
+See [LICENSE](LICENSE) for more details on the exact conditions. An online copy
+is provided [here](https://www.mozilla.org/en-US/MPL/2.0/).
+
+<!-- markdownlint-enable MD059 -->
