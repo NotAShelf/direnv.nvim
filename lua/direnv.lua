@@ -237,7 +237,18 @@ M._init = function(path)
       end
 
       vim.schedule(function()
-         local ok, env = pcall(vim.json.decode, obj.stdout)
+         local stdout = obj.stdout or ""
+
+         if stdout == "" then
+            -- direnv exported no changes; nothing to do
+            notify(
+               "direnv export produced no output (no changes)",
+               vim.log.levels.DEBUG
+            )
+            return
+         end
+
+         local ok, env = pcall(vim.json.decode, stdout)
 
          if not ok or type(env) ~= "table" then
             notify("Failed to parse direnv JSON output", vim.log.levels.ERROR)
