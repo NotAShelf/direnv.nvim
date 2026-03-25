@@ -81,9 +81,16 @@ end
 --- @param level? integer Log level
 --- @param opts? table Additional notification options
 local function notify(msg, level, opts)
-   -- Ensure level is an integer
-   level = level
-      or (M.config and M.config.notifications.level or vim.log.levels.INFO)
+   local configured_level = M.config
+      and M.config.notifications
+      and M.config.notifications.level
+      or vim.log.levels.INFO
+   level = level or configured_level
+
+   if level < configured_level then
+      return
+   end
+
    opts = opts or {}
    opts = vim.tbl_extend("force", { title = "direnv.nvim" }, opts)
 
