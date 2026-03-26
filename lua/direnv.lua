@@ -82,8 +82,8 @@ end
 --- @param opts? table Additional notification options
 local function notify(msg, level, opts)
    local configured_level = M.config
-      and M.config.notifications
-      and M.config.notifications.level
+         and M.config.notifications
+         and M.config.notifications.level
       or vim.log.levels.INFO
    level = level or configured_level
 
