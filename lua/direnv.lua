@@ -204,7 +204,7 @@ M._get_rc_status = function(callback)
    end
 
    vim.system(
-      { M.config.bin, "status", "--json" },
+      { (M.config or {}).bin or "direnv", "status", "--json" },
       { text = true, cwd = cwd },
       on_exit
    )
