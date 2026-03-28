@@ -65,11 +65,7 @@ end
 --- @param mode string|table Vim mode for the keymap
 local function setup_keymaps(keymaps, mode)
    for _, map in ipairs(keymaps) do
-      local options = vim.tbl_extend(
-         "force",
-         { noremap = true, silent = true },
-         map[3] or {}
-      )
+      local options = vim.tbl_extend("force", { silent = true }, map[3] or {})
       if map[1] then
          vim.keymap.set(mode, map[1], map[2], options)
       end
@@ -208,7 +204,7 @@ M._get_rc_status = function(callback)
    end
 
    vim.system(
-      { M.config.bin, "status", "--json" },
+      { (M.config or {}).bin or "direnv", "status", "--json" },
       { text = true, cwd = cwd },
       on_exit
    )
