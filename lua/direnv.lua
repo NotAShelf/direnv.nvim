@@ -23,6 +23,9 @@ local cache = {
    pending_request = false,
 }
 
+local direnv_env = {}
+local unload_pending = false
+
 local notification_queue = {}
 local pending_callbacks = {}
 
@@ -215,6 +218,25 @@ M.refresh_status = function()
    M._get_rc_status(function() end)
 end
 
+--- Unload direnv environment by clearing tracked variables
+M._unload = function()
+   if next(direnv_env) == nil then
+      return
+   end
+
+   unload_pending = true
+   vim.schedule(function()
+      if unload_pending then
+         for key, _ in pairs(direnv_env) do
+            vim.env[key] = nil
+         end
+         direnv_env = {}
+         unload_pending = false
+         notify("direnv environment unloaded", vim.log.levels.DEBUG)
+      end
+   end)
+end
+
 --- Initialize direnv for current directory
 --- @param path string Path to .envrc file
 M._init = function(path)
@@ -258,6 +280,9 @@ M._init = function(path)
             return
          end
 
+         unload_pending = false
+         direnv_env = {}
+
          for key, value in pairs(env) do
             if value == vim.NIL or value == nil then
                vim.env[key] = nil
@@ -266,6 +291,7 @@ M._init = function(path)
                   value = tostring(value)
                end
                vim.env[key] = value
+               direnv_env[key] = true
             end
          end
 
@@ -421,6 +447,7 @@ end
 M.check_direnv = function()
    local on_exit = function(status, path)
       if status == nil or path == nil then
+         M._unload()
          return
       end
 
