@@ -23,9 +23,6 @@ local cache = {
    pending_request = false,
 }
 
-local direnv_env = {}
-local unload_pending = false
-
 local notification_queue = {}
 local pending_callbacks = {}
 
@@ -218,23 +215,48 @@ M.refresh_status = function()
    M._get_rc_status(function() end)
 end
 
---- Unload direnv environment by clearing tracked variables
+--- Unload direnv environment by running direnv export in the current directory.
+--- direnv handles proper env restoration (including $PATH), unlike manual tracking.
 M._unload = function()
-   if next(direnv_env) == nil then
+   local cwd = get_cwd()
+   if not cwd then
       return
    end
 
-   unload_pending = true
-   vim.schedule(function()
-      if unload_pending then
-         for key, _ in pairs(direnv_env) do
-            vim.env[key] = nil
+   vim.system(
+      { M.config.bin, "export", "json" },
+      { text = true, cwd = cwd },
+      function(obj)
+         if obj.code ~= 0 then
+            return
          end
-         direnv_env = {}
-         unload_pending = false
-         notify("direnv environment unloaded", vim.log.levels.DEBUG)
+
+         vim.schedule(function()
+            local stdout = obj.stdout or ""
+            if stdout == "" then
+               return
+            end
+
+            local ok, env = pcall(vim.json.decode, stdout)
+            if not ok or type(env) ~= "table" then
+               return
+            end
+
+            for key, value in pairs(env) do
+               if value == vim.NIL or value == nil then
+                  vim.env[key] = nil
+               else
+                  if type(value) ~= "string" then
+                     value = tostring(value)
+                  end
+                  vim.env[key] = value
+               end
+            end
+
+            notify("direnv environment unloaded", vim.log.levels.DEBUG)
+         end)
       end
-   end)
+   )
 end
 
 --- Initialize direnv for current directory
@@ -280,9 +302,6 @@ M._init = function(path)
             return
          end
 
-         unload_pending = false
-         direnv_env = {}
-
          for key, value in pairs(env) do
             if value == vim.NIL or value == nil then
                vim.env[key] = nil
@@ -291,7 +310,6 @@ M._init = function(path)
                   value = tostring(value)
                end
                vim.env[key] = value
-               direnv_env[key] = true
             end
          end
 
