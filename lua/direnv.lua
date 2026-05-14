@@ -215,6 +215,50 @@ M.refresh_status = function()
    M._get_rc_status(function() end)
 end
 
+--- Unload direnv environment by running direnv export in the current directory.
+--- direnv handles proper env restoration (including $PATH), unlike manual tracking.
+M._unload = function()
+   local cwd = get_cwd()
+   if not cwd then
+      return
+   end
+
+   vim.system(
+      { M.config.bin, "export", "json" },
+      { text = true, cwd = cwd },
+      function(obj)
+         if obj.code ~= 0 then
+            return
+         end
+
+         vim.schedule(function()
+            local stdout = obj.stdout or ""
+            if stdout == "" then
+               return
+            end
+
+            local ok, env = pcall(vim.json.decode, stdout)
+            if not ok or type(env) ~= "table" then
+               return
+            end
+
+            for key, value in pairs(env) do
+               if value == vim.NIL or value == nil then
+                  vim.env[key] = nil
+               else
+                  if type(value) ~= "string" then
+                     value = tostring(value)
+                  end
+                  vim.env[key] = value
+               end
+            end
+
+            notify("direnv environment unloaded", vim.log.levels.DEBUG)
+         end)
+      end
+   )
+end
+
 --- Initialize direnv for current directory
 --- @param path string Path to .envrc file
 M._init = function(path)
@@ -421,6 +465,7 @@ end
 M.check_direnv = function()
    local on_exit = function(status, path)
       if status == nil or path == nil then
+         M._unload()
          return
       end
 
