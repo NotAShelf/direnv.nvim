@@ -3,6 +3,7 @@ local M = {}
 --- @class DirenvConfig
 --- @field bin string Path to direnv executable
 --- @field autoload_direnv boolean Automatically load direnv when opening files
+--- @field auto_restart_lsp boolean Automatically restart LSP servers after direnv environment is loaded
 --- @field cache_ttl integer Cache TTL in milliseconds for direnv status checks
 --- @field statusline table Configuration for statusline integration
 --- @field statusline.enabled boolean Enable statusline integration
@@ -323,6 +324,18 @@ M._init = function(path)
             "User",
             { pattern = "DirenvLoaded", modeline = false }
          )
+
+         if M.config.auto_restart_lsp then
+            local bufnr = vim.api.nvim_get_current_buf()
+            local bufname = vim.api.nvim_buf_get_name(bufnr)
+            local clients = vim.lsp.get_clients({ bufnr = bufnr })
+            for _, client in ipairs(clients) do
+               client:stop()
+            end
+            if bufname ~= "" then
+               vim.cmd("edit")
+            end
+         end
       end)
    end
 
@@ -547,6 +560,7 @@ M.setup = function(user_config)
    M.config = vim.tbl_deep_extend("force", {
       bin = "direnv",
       autoload_direnv = false,
+      auto_restart_lsp = true,
       cache_ttl = 5000,
       statusline = {
          enabled = false,
