@@ -329,11 +329,18 @@ M._init = function(path)
             local bufnr = vim.api.nvim_get_current_buf()
             local bufname = vim.api.nvim_buf_get_name(bufnr)
             local clients = vim.lsp.get_clients({ bufnr = bufnr })
-            for _, client in ipairs(clients) do
-               client:stop()
-            end
-            if bufname ~= "" then
-               vim.cmd("edit")
+            if bufname ~= "" and #clients > 0 then
+               for _, client in ipairs(clients) do
+                  client:stop()
+               end
+               vim.defer_fn(function()
+                  if
+                     vim.api.nvim_buf_is_valid(bufnr)
+                     and vim.api.nvim_buf_get_name(bufnr) ~= ""
+                  then
+                     vim.cmd("edit")
+                  end
+               end, 500)
             end
          end
       end)
