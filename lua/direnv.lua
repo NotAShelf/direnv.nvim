@@ -30,6 +30,13 @@ local notification_queue = {}
 local notification_queue_scheduled = false
 local pending_callbacks = {}
 
+-- Timestamp (ms) of the last successful direnv env load; nil when idle.
+-- Lets the LspAttach handler catch clients that race with direnv startup.
+local direnv_loaded_at = nil
+-- bufnr -> direnv_loaded_at value when a restart was issued for that buffer.
+-- Prevents the re-attached client from triggering a second restart loop.
+local lsp_restart_issued = {}
+
 --- Check if an executable is available in PATH
 --- @param executable_name string Name of the executable
 --- @return boolean is_available
@@ -331,11 +338,17 @@ M._init = function(path)
          )
 
          if M.config.auto_restart_lsp then
+            -- Reset per-load state so the LspAttach handler covers fresh buffers.
+            direnv_loaded_at = vim.uv.hrtime() / 1e6
+            lsp_restart_issued = {}
+
             local bufnr = vim.api.nvim_get_current_buf()
             local bufname = vim.api.nvim_buf_get_name(bufnr)
-            local clients = vim.lsp.get_clients({ bufnr = bufnr })
-            if bufname ~= "" and #clients > 0 then
-               for _, client in ipairs(clients) do
+            if bufname ~= "" then
+               -- Mark this buffer so the LspAttach handler doesn't double-restart
+               -- the clients that re-attach after our vim.cmd("edit") below.
+               lsp_restart_issued[bufnr] = direnv_loaded_at
+               for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
                   client:stop()
                end
                vim.defer_fn(function()
@@ -707,6 +720,42 @@ M.setup = function(user_config)
             ".envrc file changed. Run :Direnv allow to activate changes.",
             vim.log.levels.INFO
          )
+      end,
+   })
+
+   -- Restart LSP clients that attach within 10 s of a direnv load.
+   -- Handles the session-manager race where buffers restore and LSP starts
+   -- before (or simultaneously with) direnv loading the environment.
+   vim.api.nvim_create_autocmd("LspAttach", {
+      group = group_id,
+      callback = function(ev)
+         if not M.config.auto_restart_lsp or not direnv_loaded_at then
+            return
+         end
+
+         local now = vim.uv.hrtime() / 1e6
+         if now - direnv_loaded_at > 10000 then
+            direnv_loaded_at = nil
+            lsp_restart_issued = {}
+            return
+         end
+
+         -- Skip buffers we already handled in _init or a prior LspAttach.
+         if lsp_restart_issued[ev.buf] == direnv_loaded_at then
+            return
+         end
+         lsp_restart_issued[ev.buf] = direnv_loaded_at
+
+         for _, client in ipairs(vim.lsp.get_clients({ bufnr = ev.buf })) do
+            client:stop()
+         end
+         vim.defer_fn(function()
+            if vim.api.nvim_buf_is_valid(ev.buf) then
+               vim.api.nvim_buf_call(ev.buf, function()
+                  vim.cmd("edit")
+               end)
+            end
+         end, 500)
       end,
    })
 
