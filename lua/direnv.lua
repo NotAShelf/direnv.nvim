@@ -17,6 +17,8 @@ local M = {}
 --- @field notifications.level integer Log level for notifications
 --- @field notifications.silent_autoload boolean Don't show notifications during autoload and initialization
 
+local NO_ENVRC = {} -- sentinel: "checked and found no .envrc"
+
 local cache = {
    status = nil,
    path = nil,
@@ -25,6 +27,7 @@ local cache = {
 }
 
 local notification_queue = {}
+local notification_queue_scheduled = false
 local pending_callbacks = {}
 
 --- Check if an executable is available in PATH
@@ -98,35 +101,31 @@ local function notify(msg, level, opts)
          opts = opts,
       })
 
-      vim.schedule(function()
-         while #notification_queue > 0 do
-            local item = table.remove(notification_queue, 1)
-            vim.notify(item.msg, item.level, item.opts)
-         end
-      end)
+      if not notification_queue_scheduled then
+         notification_queue_scheduled = true
+         vim.schedule(function()
+            notification_queue_scheduled = false
+            while #notification_queue > 0 do
+               local item = table.remove(notification_queue, 1)
+               vim.notify(item.msg, item.level, item.opts)
+            end
+         end)
+      end
    else
       vim.notify(msg, level, opts)
    end
 end
 
---- Process any pending notifications
-local function process_notification_queue()
-   vim.schedule(function()
-      while #notification_queue > 0 do
-         local item = table.remove(notification_queue, 1)
-         vim.notify(item.msg, item.level, item.opts)
-      end
-   end)
-end
-
 --- Get current direnv status via JSON API
 --- @param callback function Callback function to handle result
 M._get_rc_status = function(callback)
-   local loop = vim.uv or vim.loop
-   local now = math.floor(loop.hrtime() / 1000000) -- ns -> ms
+   local now = math.floor(vim.uv.hrtime() / 1000000) -- ns -> ms
    local ttl = (M.config and M.config.cache_ttl) or 5000
 
    if cache.status ~= nil and (now - cache.last_check) < ttl then
+      if cache.status == NO_ENVRC then
+         return callback(nil, nil)
+      end
       return callback(cache.status, cache.path)
    end
 
@@ -184,7 +183,7 @@ M._get_rc_status = function(callback)
       end
 
       if status.state.foundRC == vim.NIL then
-         cache.status = nil
+         cache.status = NO_ENVRC
          cache.path = nil
          cache.last_check = now
          for _, cb in ipairs(pending_callbacks) do
@@ -229,6 +228,12 @@ M._unload = function()
       { text = true, cwd = cwd },
       function(obj)
          if obj.code ~= 0 then
+            vim.schedule(function()
+               notify(
+                  "Failed to unload direnv: " .. (obj.stderr or "unknown error"),
+                  vim.log.levels.WARN
+               )
+            end)
             return
          end
 
@@ -469,14 +474,14 @@ M.edit_envrc = function()
             )
 
             if create_new == 1 then
-               vim.cmd("edit " .. envrc_path)
+               vim.cmd.edit(envrc_path)
             end
          end)
          return
       end
 
       vim.schedule(function()
-         vim.cmd("edit " .. path)
+         vim.cmd.edit(path)
       end)
    end)
 end
@@ -567,7 +572,7 @@ M.setup = function(user_config)
    M.config = vim.tbl_deep_extend("force", {
       bin = "direnv",
       autoload_direnv = false,
-      auto_restart_lsp = true,
+      auto_restart_lsp = false,
       cache_ttl = 5000,
       statusline = {
          enabled = false,
@@ -644,30 +649,18 @@ M.setup = function(user_config)
       setup_keymaps({
          {
             M.config.keybindings.allow,
-            function()
-               M.allow_direnv()
-            end,
+            M.allow_direnv,
             { desc = "Allow direnv" },
          },
-         {
-            M.config.keybindings.deny,
-            function()
-               M.deny_direnv()
-            end,
-            { desc = "Deny direnv" },
-         },
+         { M.config.keybindings.deny, M.deny_direnv, { desc = "Deny direnv" } },
          {
             M.config.keybindings.reload,
-            function()
-               M.check_direnv()
-            end,
+            M.check_direnv,
             { desc = "Reload direnv" },
          },
          {
             M.config.keybindings.edit,
-            function()
-               M.edit_envrc()
-            end,
+            M.edit_envrc,
             { desc = "Edit .envrc file" },
          },
       }, "n")
@@ -723,8 +716,6 @@ M.setup = function(user_config)
    end, {})
 
    M._get_rc_status(function() end)
-
-   process_notification_queue()
 
    if not M.config.notifications.silent_autoload then
       notify("direnv.nvim initialized", vim.log.levels.DEBUG)
