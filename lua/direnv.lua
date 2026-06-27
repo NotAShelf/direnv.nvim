@@ -23,6 +23,7 @@ local cache = {
    status = nil,
    path = nil,
    last_check = 0,
+   cwd = nil,
    pending_request = false,
 }
 
@@ -126,8 +127,18 @@ end
 --- Get current direnv status via JSON API
 --- @param callback function Callback function to handle result
 M._get_rc_status = function(callback)
+   local cwd = get_cwd()
+   if not cwd then
+      return callback(nil, nil)
+   end
+
    local now = math.floor(vim.uv.hrtime() / 1000000) -- ns -> ms
    local ttl = (M.config and M.config.cache_ttl) or 5000
+
+   if cache.cwd ~= nil and cache.cwd ~= cwd then
+      cache.status = nil
+      cache.cwd = nil
+   end
 
    if cache.status ~= nil and (now - cache.last_check) < ttl then
       if cache.status == NO_ENVRC then
@@ -143,16 +154,6 @@ M._get_rc_status = function(callback)
    end
 
    cache.pending_request = true
-
-   local cwd = get_cwd()
-   if not cwd then
-      cache.pending_request = false
-      for _, cb in ipairs(pending_callbacks) do
-         cb(nil, nil)
-      end
-      pending_callbacks = {}
-      return
-   end
 
    local on_exit = function(obj)
       cache.pending_request = false
@@ -192,6 +193,7 @@ M._get_rc_status = function(callback)
       if status.state.foundRC == vim.NIL then
          cache.status = NO_ENVRC
          cache.path = nil
+         cache.cwd = cwd
          cache.last_check = now
          for _, cb in ipairs(pending_callbacks) do
             cb(nil, nil)
@@ -202,6 +204,7 @@ M._get_rc_status = function(callback)
 
       cache.status = status.state.foundRC.allowed
       cache.path = status.state.foundRC.path
+      cache.cwd = cwd
       cache.last_check = now
 
       for _, cb in ipairs(pending_callbacks) do
@@ -219,6 +222,7 @@ end
 
 M.refresh_status = function()
    cache.status = nil
+   cache.cwd = nil
    M._get_rc_status(function() end)
 end
 
