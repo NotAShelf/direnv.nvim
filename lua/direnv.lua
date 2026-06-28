@@ -5,6 +5,7 @@ local M = {}
 --- @field autoload_direnv boolean Automatically load direnv when opening files
 --- @field auto_restart_lsp boolean Automatically restart LSP servers after direnv environment is loaded
 --- @field cache_ttl integer Cache TTL in milliseconds for direnv status checks
+--- @field merge_path boolean Merge direnv PATH with current PATH instead of replacing it, preserving nvim tooling
 --- @field statusline table Configuration for statusline integration
 --- @field statusline.enabled boolean Enable statusline integration
 --- @field statusline.icon string Icon to show in statusline
@@ -53,6 +54,30 @@ local function check_executable(executable_name)
       return false
    end
    return true
+end
+
+--- Merge a direnv-exported PATH with the current vim.env.PATH.
+--- Direnv entries come first (so project tools take priority), then any
+--- entries currently in PATH that direnv doesn't know about are appended.
+--- @param direnv_path string The PATH value from direnv export
+--- @return string merged_path
+local function merge_path(direnv_path)
+   local current_paths = vim.split(vim.env.PATH or "", ":", { plain = true })
+   local new_paths = vim.split(direnv_path, ":", { plain = true })
+
+   local in_direnv = {}
+   for _, p in ipairs(new_paths) do
+      in_direnv[p] = true
+   end
+
+   local merged = vim.list_extend({}, new_paths)
+   for _, p in ipairs(current_paths) do
+      if not in_direnv[p] then
+         table.insert(merged, p)
+      end
+   end
+
+   return table.concat(merged, ":")
 end
 
 --- Get current working directory safely
@@ -262,7 +287,11 @@ M._unload = function()
                   if type(value) ~= "string" then
                      value = tostring(value)
                   end
-                  vim.env[key] = value
+                  if key == "PATH" and M.config.merge_path then
+                     vim.env[key] = merge_path(value)
+                  else
+                     vim.env[key] = value
+                  end
                end
             end
 
@@ -322,7 +351,11 @@ M._init = function(path)
                if type(value) ~= "string" then
                   value = tostring(value)
                end
-               vim.env[key] = value
+               if key == "PATH" and M.config.merge_path then
+                  vim.env[key] = merge_path(value)
+               else
+                  vim.env[key] = value
+               end
             end
          end
 
@@ -587,6 +620,7 @@ M.setup = function(user_config)
       autoload_direnv = false,
       auto_restart_lsp = false,
       cache_ttl = 5000,
+      merge_path = true,
       statusline = {
          enabled = false,
          icon = "󱚟",
